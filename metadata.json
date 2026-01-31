@@ -1,0 +1,5 @@
+{
+  "name": "Bullseye AI - Bullet Hole Analyzer",
+  "description": "An advanced shooting target analysis tool using computer vision logic to detect and count bullet holes, including overlapping shots using Distance Transform and Watershed-inspired spatial reasoning.",
+  "requestFramePermissions": []
+}
