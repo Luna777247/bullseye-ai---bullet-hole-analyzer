@@ -11,7 +11,7 @@ import {
   BarChart3,
   Crosshair
 } from 'lucide-react';
-import { analyzeTargetImage } from './services/geminiService';
+import { analyzeBulletHoles } from './services/bulletHoleService';
 import { AnalysisResult, ProcessingStatus, ProcessingStep, Shot } from './types';
 import { ProcessingOverlay } from './components/ProcessingOverlay';
 
@@ -20,7 +20,7 @@ const PIPELINE_STEPS: ProcessingStep[] = [
   { name: 'Grayscale & Threshold', description: 'Isolating high-contrast impact zones', isDone: false },
   { name: 'Distance Transform', description: 'Calculating Euclidean distance to centers', isDone: false },
   { name: 'Watershed Segmentation', description: 'Isolating overlapping centroids', isDone: false },
-  { name: 'Final Validation', description: 'Gemini AI reasoning verification', isDone: false },
+  { name: 'Final Validation', description: 'C++ OpenCV processing complete', isDone: false },
 ];
 
 const App: React.FC = () => {
@@ -55,11 +55,11 @@ const App: React.FC = () => {
     try {
       // Simulate visual pipeline progress
       for (let i = 0; i < PIPELINE_STEPS.length - 1; i++) {
-        await new Promise(r => setTimeout(r, 600));
+        await new Promise(r => setTimeout(r, 400));
         setSteps(prev => prev.map((s, idx) => idx === i ? { ...s, isDone: true } : s));
       }
 
-      const analysisResult = await analyzeTargetImage(image);
+      const analysisResult = await analyzeBulletHoles(image);
       
       // Final step complete
       setSteps(prev => prev.map((s, idx) => idx === PIPELINE_STEPS.length - 1 ? { ...s, isDone: true } : s));
@@ -67,7 +67,8 @@ const App: React.FC = () => {
       setStatus(ProcessingStatus.COMPLETED);
     } catch (err) {
       console.error(err);
-      setError("Analysis failed. Please check your image and try again.");
+      const message = err instanceof Error ? err.message : "Analysis failed. Make sure the C++ server is running on localhost:8080";
+      setError(message);
       setStatus(ProcessingStatus.ERROR);
     }
   };
@@ -94,8 +95,8 @@ const App: React.FC = () => {
             </h1>
           </div>
           <div className="hidden md:flex items-center gap-6 text-sm text-slate-400">
-            <span className="flex items-center gap-1.5"><ShieldCheck className="w-4 h-4" /> Military Grade Precision</span>
-            <span className="flex items-center gap-1.5"><Zap className="w-4 h-4" /> Real-time Processing</span>
+            <span className="flex items-center gap-1.5"><ShieldCheck className="w-4 h-4" /> C++ OpenCV Engine</span>
+            <span className="flex items-center gap-1.5"><Zap className="w-4 h-4" /> Real-time CV Processing</span>
           </div>
         </div>
       </nav>
@@ -133,24 +134,34 @@ const App: React.FC = () => {
                     className="max-h-full max-w-full object-contain rounded-lg shadow-2xl" 
                   />
                   
-                  {/* Result Markers */}
+                  {/* Result Markers - Draw circles with actual radius from API */}
                   {status === ProcessingStatus.COMPLETED && result && (
                     <div className="absolute inset-0 m-4 pointer-events-none">
                       <div className="relative w-full h-full">
-                        {result.shots.map((shot) => (
-                          <div 
-                            key={shot.id}
-                            className={`absolute -translate-x-1/2 -translate-y-1/2 flex items-center justify-center ${shot.isOverlapping ? 'animate-pulse' : ''}`}
-                            style={{ left: `${shot.x}%`, top: `${shot.y}%` }}
-                          >
-                            <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center ${shot.isOverlapping ? 'border-amber-500 bg-amber-500/20' : 'border-blue-500 bg-blue-500/20'}`}>
-                              <span className="text-[10px] font-bold text-white">{shot.id}</span>
+                        {result.shots.map((shot) => {
+                          // Calculate circle size based on radius from API
+                          const circleSize = Math.max(20, Math.min(80, shot.radius || 30));
+                          return (
+                            <div 
+                              key={shot.id}
+                              className="absolute -translate-x-1/2 -translate-y-1/2"
+                              style={{ left: `${shot.x}%`, top: `${shot.y}%` }}
+                            >
+                              {/* Outer circle representing detected hole */}
+                              <div 
+                                className={`rounded-full border-2 flex items-center justify-center ${shot.isOverlapping ? 'border-amber-500 bg-amber-500/10 animate-pulse' : 'border-cyan-400 bg-cyan-400/10'}`}
+                                style={{ width: `${circleSize}px`, height: `${circleSize}px` }}
+                              >
+                                {/* Center marker */}
+                                <div className="w-2 h-2 bg-red-500 rounded-full shadow-lg shadow-red-500/50"></div>
+                              </div>
+                              {/* Label */}
+                              <div className="absolute -top-6 left-1/2 -translate-x-1/2 whitespace-nowrap bg-black/90 text-[10px] px-2 py-0.5 rounded font-bold text-cyan-400 border border-cyan-500/30">
+                                #{shot.id}
+                              </div>
                             </div>
-                            <div className="absolute top-7 whitespace-nowrap bg-black/80 text-[8px] px-1 rounded uppercase tracking-tighter">
-                              {Math.round(shot.confidence * 100)}% Conf.
-                            </div>
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     </div>
                   )}
@@ -192,33 +203,35 @@ const App: React.FC = () => {
                 <div className="space-y-6">
                   <div className="flex items-end justify-between">
                     <div>
-                      <p className="text-slate-500 text-sm uppercase tracking-widest">Total Shots</p>
-                      <p className="text-5xl font-black text-blue-500">{result.totalShots}</p>
+                      <p className="text-slate-500 text-sm uppercase tracking-widest">Detected Holes</p>
+                      <p className="text-5xl font-black text-cyan-400">{result.totalShots}</p>
                     </div>
                     <div className="text-right">
-                      <p className="text-slate-500 text-sm uppercase tracking-widest">Efficiency</p>
-                      <p className="text-xl font-bold text-emerald-500">{(result.shots.length / result.totalShots * 100).toFixed(0)}%</p>
+                      <p className="text-slate-500 text-sm uppercase tracking-widest">Algorithm</p>
+                      <p className="text-xs font-bold text-emerald-500">Distance<br/>Transform</p>
                     </div>
                   </div>
 
                   <div className="grid grid-cols-2 gap-4">
                     <div className="bg-slate-800/50 p-4 rounded-xl border border-slate-700">
-                      <p className="text-slate-500 text-xs mb-1">Doublets</p>
+                      <p className="text-slate-500 text-xs mb-1">Large Holes</p>
                       <p className="text-xl font-bold text-amber-500">
                         {result.shots.filter(s => s.isOverlapping).length}
                       </p>
                     </div>
                     <div className="bg-slate-800/50 p-4 rounded-xl border border-slate-700">
-                      <p className="text-slate-500 text-xs mb-1">Latency</p>
-                      <p className="text-xl font-bold text-slate-300">
-                        {result.processingTimeMs}ms
+                      <p className="text-slate-500 text-xs mb-1">Image Size</p>
+                      <p className="text-xs font-bold text-slate-300 pt-1">
+                        {result.technicalDetails?.imageSize || 'N/A'}
                       </p>
                     </div>
                   </div>
 
                   <div className="pt-4 border-t border-slate-800">
-                    <p className="text-slate-400 text-sm italic leading-relaxed">
-                      "{result.summary}"
+                    <p className="text-slate-400 text-xs leading-relaxed">
+                      <span className="font-semibold text-cyan-400">Algorithm:</span> {result.technicalDetails?.algorithm || 'OpenCV'}<br/>
+                      <span className="font-semibold text-cyan-400">Area Filter:</span> {result.technicalDetails?.areaThresholds || 'Adaptive'}<br/>
+                      <span className="font-semibold text-cyan-400">Processing:</span> {result.technicalDetails?.processingTime || 'Fast'}
                     </p>
                   </div>
                 </div>
@@ -269,7 +282,7 @@ const App: React.FC = () => {
       <footer className="mt-20 border-t border-slate-800 py-10">
         <div className="max-w-7xl mx-auto px-4 text-center">
           <p className="text-slate-500 text-sm">
-            Powered by Gemini 3 Flash & Advanced Computer Vision Pipeline Logic
+            Powered by C++ OpenCV • Distance Transform • Watershed Segmentation
           </p>
         </div>
       </footer>
