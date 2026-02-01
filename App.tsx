@@ -284,6 +284,9 @@ const App: React.FC = () => {
           <p className="text-slate-500 text-sm">
             Powered by C++ OpenCV • Distance Transform • Watershed Segmentation
           </p>
+          <p className="text-slate-600 text-xs mt-2">
+            © 2026 Luna777247. All rights reserved.
+          </p>
         </div>
       </footer>
     </div>
