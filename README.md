@@ -33,6 +33,8 @@ Server chạy tại `http://localhost:8080`.
 
 Frontend mặc định gọi API qua proxy `/detect` và `/health` sang `http://localhost:8080`.
 
+## Kết quả 
+![Ảnh kết quả](imagedemo/f0270869-800px-wm-result.jpg)
 ## Ghi chú
 
 - Nếu frontend báo lỗi “Failed to fetch”, hãy đảm bảo backend đang chạy và không bị chiếm cổng 8080.
